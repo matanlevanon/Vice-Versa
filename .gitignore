@@ -1,0 +1,35 @@
+# Build output
+bin/
+obj/
+publish/
+staging/
+dist/
+build/
+*.user
+*.suo
+.vs/
+.idea/
+.vscode/
+
+# Signing material. Never commit these.
+*.pfx
+*.p12
+*.snk
+*.cer
+*.crt
+*.key
+
+# Local settings written by a portable run
+/settings.json
+/portable.txt
+ahk/ViceVersa.ini
+src/ViceVersa/settings.json
+
+# Python
+__pycache__/
+*.pyc
+
+# OS noise
+Thumbs.db
+desktop.ini
+.DS_Store

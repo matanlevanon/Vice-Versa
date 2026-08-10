@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>ViceVersa</AssemblyName>
+    <RootNamespace>ViceVersa</RootNamespace>
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <Product>Vice Versa</Product>
+    <AssemblyTitle>Vice Versa</AssemblyTitle>
+    <Company>Vice Versa</Company>
+    <Authors>Matan Levanon</Authors>
+    <Description>Convert text between Hebrew and English by keyboard position, anywhere in Windows.</Description>
+    <Copyright>Copyright (c) 2026</Copyright>
+    <RepositoryUrl>https://github.com/matanlevanon/Vice-Versa</RepositoryUrl>
+  </PropertyGroup>
+
+  <!-- Single-file publish settings. Trimming stays off: WinForms is not trim safe. -->
+  <PropertyGroup Condition="'$(PublishSingleFile)' == 'true'">
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Resources\app.ico" LogicalName="ViceVersa.app.ico" />
+  </ItemGroup>
+
+</Project>
