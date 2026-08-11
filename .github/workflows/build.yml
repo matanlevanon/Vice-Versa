@@ -123,8 +123,20 @@ jobs:
           $iconOut = (Resolve-Path 'src/ViceVersa/Resources/app.ico').Path
           $outFile = Join-Path (Resolve-Path 'publish/ahk').Path 'ViceVersa-AHK.exe'
 
-          & $ahk2exe.FullName /in $inFile /out $outFile /base $base.FullName /icon $iconOut /silent
-          if ($LASTEXITCODE -ne 0) { throw "Ahk2Exe exited with $LASTEXITCODE" }
+          # Ahk2Exe.exe is a GUI subsystem application. Calling it with & returns
+          # immediately and leaves $LASTEXITCODE unset, so an exit code check on
+          # the call site throws even when the compile succeeded. Start-Process
+          # -Wait waits for a GUI process and -PassThru gives a real exit code.
+          $arguments = @(
+            '/in',   $inFile,
+            '/out',  $outFile,
+            '/base', $base.FullName,
+            '/icon', $iconOut,
+            '/silent'
+          )
+
+          $process = Start-Process -FilePath $ahk2exe.FullName -ArgumentList $arguments -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 0) { throw "Ahk2Exe exited with $($process.ExitCode)" }
           if (-not (Test-Path $outFile)) { throw 'Ahk2Exe produced no output' }
           Write-Host 'AutoHotkey edition compiled'
         env:
