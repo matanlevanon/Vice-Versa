@@ -33,7 +33,14 @@ public sealed class AppSettings
     public bool ShowNotifications { get; set; } = true;
 
     /// <summary>How long to wait for the target app to answer Ctrl+C.</summary>
-    public int ClipboardTimeoutMs { get; set; } = 600;
+    public int ClipboardTimeoutMs { get; set; } = 800;
+
+    /// <summary>
+    /// Pause after Ctrl+A before copying again. Electron and WinUI applications,
+    /// WhatsApp Desktop among them, process synthesised input slower than native
+    /// Win32 controls. Copying too soon after the select reads an empty selection.
+    /// </summary>
+    public int SelectAllSettleMs { get; set; } = 150;
 
     /// <summary>Pause after pasting before the clipboard is restored.</summary>
     public int PasteSettleMs { get; set; } = 200;

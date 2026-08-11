@@ -126,21 +126,19 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
         ClipboardService.Snapshot original = ClipboardService.Capture();
 
-        uint sequence = ClipboardService.SequenceNumber;
-        InputSimulator.SendControlKey('C');
-        bool copied = await ClipboardService.WaitForChangeAsync(sequence, _settings.ClipboardTimeoutMs);
+        string text = await CopySelectionAsync();
 
-        if (!copied && _settings.AutoSelectAll)
+        // Retry on empty text, not only on an unchanged clipboard. Some apps answer
+        // Ctrl+C with an empty selection by writing an empty payload, which moves the
+        // clipboard sequence number without producing anything to convert. Gating the
+        // retry on the sequence number alone skipped Ctrl+A in exactly those apps.
+        if (string.IsNullOrEmpty(text) && _settings.AutoSelectAll)
         {
             InputSimulator.SendControlKey('A');
-            await Task.Delay(60);
+            await Task.Delay(_settings.SelectAllSettleMs);
 
-            sequence = ClipboardService.SequenceNumber;
-            InputSimulator.SendControlKey('C');
-            copied = await ClipboardService.WaitForChangeAsync(sequence, _settings.ClipboardTimeoutMs);
+            text = await CopySelectionAsync();
         }
-
-        string text = copied ? ClipboardService.GetText() : string.Empty;
 
         if (string.IsNullOrEmpty(text))
         {
@@ -169,6 +167,21 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             InputLanguageSwitcher.SwitchTo(target, TextConverter.DetectScript(converted));
         }
+    }
+
+    /// <summary>
+    /// Sends Ctrl+C and returns whatever landed on the clipboard, or an empty
+    /// string when nothing did. The sequence number tells us the clipboard moved.
+    /// The text tells us the move was worth something. Both have to hold.
+    /// </summary>
+    private async Task<string> CopySelectionAsync()
+    {
+        uint sequence = ClipboardService.SequenceNumber;
+        InputSimulator.SendControlKey('C');
+
+        bool changed = await ClipboardService.WaitForChangeAsync(sequence, _settings.ClipboardTimeoutMs);
+
+        return changed ? ClipboardService.GetText() : string.Empty;
     }
 
     private void RestoreClipboard(ClipboardService.Snapshot original)

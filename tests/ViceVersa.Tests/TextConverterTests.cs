@@ -166,6 +166,8 @@ public class AppSettingsTests
         Assert.True(settings.RestoreClipboard);
         Assert.Equal(ConversionDirection.Auto, settings.EffectiveDirection);
         Assert.True(settings.ClipboardTimeoutMs > 0);
+        Assert.True(settings.SelectAllSettleMs > 0);
+        Assert.True(settings.PasteSettleMs > 0);
     }
 
     [Fact]
@@ -173,5 +175,18 @@ public class AppSettingsTests
     {
         var settings = new AppSettings { Direction = "sideways" };
         Assert.Equal(ConversionDirection.Auto, settings.EffectiveDirection);
+    }
+
+    [Fact]
+    public void TimingValuesSurviveARoundTripThroughJson()
+    {
+        var settings = new AppSettings { ClipboardTimeoutMs = 1500, SelectAllSettleMs = 400 };
+
+        string json = System.Text.Json.JsonSerializer.Serialize(settings);
+        AppSettings? loaded = System.Text.Json.JsonSerializer.Deserialize<AppSettings>(json);
+
+        Assert.NotNull(loaded);
+        Assert.Equal(1500, loaded!.ClipboardTimeoutMs);
+        Assert.Equal(400, loaded.SelectAllSettleMs);
     }
 }
