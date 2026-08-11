@@ -45,7 +45,15 @@ After downloading, right-click the file, open Properties, and tick **Unblock**. 
 2. Select it. Or do not, and let the app select the field for you.
 3. Press `Shift+F12`.
 
-Right-click the tray icon for settings, direction, and the hotkey.
+Right-click the tray icon for settings, direction, the hotkey, and an update check.
+
+### Checking for updates
+
+Right-click the tray icon and pick **Check for updates**. Vice Versa asks the GitHub releases API for the newest published version and compares it against the running build.
+
+Nothing downloads and nothing installs on its own. When a newer version exists, the app offers to open the releases page and you take it from there.
+
+The check needs the repository to be public. A private repository answers the same way as one with no releases, and the app says so rather than pretending the check succeeded.
 
 ### Settings
 

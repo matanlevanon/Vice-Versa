@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
@@ -12,7 +13,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly Icon _icon;
 
     private ToolStripMenuItem _startWithWindowsItem = null!;
+    private ToolStripMenuItem _updatesItem = null!;
     private bool _busy;
+    private bool _checkingForUpdates;
     private SettingsForm? _settingsForm;
 
     public TrayApplicationContext()
@@ -53,6 +56,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
         };
         _startWithWindowsItem.Click += (_, _) => AppSettings.SetStartWithWindows(_startWithWindowsItem.Checked);
 
+        _updatesItem = new ToolStripMenuItem("Check for updates");
+        _updatesItem.Click += async (_, _) => await CheckForUpdatesAsync();
+
         var aboutItem = new ToolStripMenuItem("About");
         aboutItem.Click += (_, _) => ShowAbout();
 
@@ -64,6 +70,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         menu.Items.Add(settingsItem);
         menu.Items.Add(_startWithWindowsItem);
         menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(_updatesItem);
         menu.Items.Add(aboutItem);
         menu.Items.Add(exitItem);
 
@@ -225,6 +232,82 @@ internal sealed class TrayApplicationContext : ApplicationContext
         ApplyHotkey(showErrors: result == DialogResult.OK);
         _startWithWindowsItem.Checked = AppSettings.StartsWithWindows;
         UpdateTooltip();
+    }
+
+    // ----------------------------------------------------------------- updates
+
+    private async Task CheckForUpdatesAsync()
+    {
+        if (_checkingForUpdates)
+        {
+            return;
+        }
+
+        _checkingForUpdates = true;
+        _updatesItem.Enabled = false;
+        _updatesItem.Text = "Checking...";
+
+        try
+        {
+            UpdateChecker.Result result = await UpdateChecker.CheckAsync();
+            string current = UpdateChecker.CurrentVersion.ToString(3);
+
+            switch (result.Outcome)
+            {
+                case UpdateChecker.Outcome.UpdateAvailable:
+                    DialogResult answer = MessageBox.Show(
+                        $"Version {result.LatestVersion} is out. You are running {current}.\n\n" +
+                        "Open the download page?",
+                        "Vice Versa",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Information);
+
+                    if (answer == DialogResult.Yes)
+                    {
+                        OpenReleasesPage();
+                    }
+
+                    break;
+
+                case UpdateChecker.Outcome.UpToDate:
+                    MessageBox.Show(
+                        $"Vice Versa {current} is the latest version.",
+                        "Vice Versa",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                    break;
+
+                default:
+                    MessageBox.Show(
+                        "Could not check for updates.\n\n" + result.Message,
+                        "Vice Versa",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    break;
+            }
+        }
+        finally
+        {
+            _checkingForUpdates = false;
+            _updatesItem.Enabled = true;
+            _updatesItem.Text = "Check for updates";
+        }
+    }
+
+    /// <summary>
+    /// Opens the releases page. The URL is a constant in this application, never
+    /// a value read back from the API response.
+    /// </summary>
+    private static void OpenReleasesPage()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(UpdateChecker.ReleasesPageUrl) { UseShellExecute = true });
+        }
+        catch (Exception)
+        {
+            // No default browser, or the shell refused to launch it.
+        }
     }
 
     private void ShowAbout()

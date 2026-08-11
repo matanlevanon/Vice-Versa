@@ -190,3 +190,62 @@ public class AppSettingsTests
         Assert.Equal(400, loaded.SelectAllSettleMs);
     }
 }
+
+public class UpdateCheckerTests
+{
+    [Theory]
+    [InlineData("v1.2.0", "1.2.0")]
+    [InlineData("1.2.0", "1.2.0")]
+    [InlineData("V1.2.0", "1.2.0")]
+    [InlineData("  v1.2.0  ", "1.2.0")]
+    [InlineData("v1.2.0-beta.1", "1.2.0")]
+    [InlineData("v2.0", "2.0.0")]
+    public void ParsesReleaseTags(string tag, string expected)
+    {
+        Assert.True(UpdateChecker.TryParseTag(tag, out Version parsed));
+        Assert.Equal(expected, parsed.ToString(3));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("latest")]
+    [InlineData("v")]
+    public void RejectsTagsWithoutAVersion(string? tag)
+    {
+        Assert.False(UpdateChecker.TryParseTag(tag, out _));
+    }
+
+    [Fact]
+    public void ATagAboveTheCurrentVersionCountsAsNewer()
+    {
+        Assert.True(UpdateChecker.IsNewer("v1.0.1", new Version(1, 0, 0)));
+        Assert.True(UpdateChecker.IsNewer("v1.1.0", new Version(1, 0, 9)));
+        Assert.True(UpdateChecker.IsNewer("v2.0.0", new Version(1, 9, 9)));
+    }
+
+    [Fact]
+    public void TheSameOrAnOlderTagIsNotNewer()
+    {
+        Assert.False(UpdateChecker.IsNewer("v1.0.0", new Version(1, 0, 0)));
+        Assert.False(UpdateChecker.IsNewer("v1.0.0", new Version(1, 0, 1)));
+        Assert.False(UpdateChecker.IsNewer("v0.9.0", new Version(1, 0, 0)));
+    }
+
+    [Fact]
+    public void AFourPartAssemblyVersionDoesNotLookOlderThanItsOwnTag()
+    {
+        // The build stamps the assembly as 1.0.0.0 while the tag reads v1.0.0.
+        // Comparing them raw reports an update forever, because an absent
+        // revision sorts below a zero one.
+        Assert.False(UpdateChecker.IsNewer("v1.0.0", new Version(1, 0, 0, 0)));
+    }
+
+    [Fact]
+    public void GarbageTagsNeverCountAsNewer()
+    {
+        Assert.False(UpdateChecker.IsNewer("nightly", new Version(1, 0, 0)));
+        Assert.False(UpdateChecker.IsNewer(null, new Version(1, 0, 0)));
+    }
+}
