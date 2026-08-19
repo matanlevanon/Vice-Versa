@@ -30,6 +30,14 @@ public sealed class AppSettings
     /// <summary>Auto, EnglishToHebrew or HebrewToEnglish.</summary>
     public string Direction { get; set; } = ConversionDirection.Auto.ToString();
 
+    /// <summary>
+    /// Auto mode only. Caps Lock on the Windows Hebrew layout emits Latin
+    /// uppercase instead of Hebrew, so an ALL-CAPS word in a selection that also
+    /// holds Hebrew stays English, and a lone capital glued to Hebrew text is
+    /// folded to lowercase.
+    /// </summary>
+    public bool SmartCase { get; set; } = true;
+
     public bool ShowNotifications { get; set; } = true;
 
     /// <summary>How long to wait for the target app to answer Ctrl+C.</summary>

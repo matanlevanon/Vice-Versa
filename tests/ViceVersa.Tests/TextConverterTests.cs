@@ -105,6 +105,91 @@ public class TextConverterTests
         }
     }
 
+    // ---------------------------------------------------------------- smart case
+    //
+    // Caps Lock on the Windows Hebrew layout emits Latin uppercase instead of
+    // Hebrew. So an ALL-CAPS word inside a selection that also holds Hebrew is
+    // what the user typed on purpose, and a lone capital glued to Hebrew text is
+    // Caps Lock noise.
+
+    [Fact]
+    public void AcronymSurvivesAndTheStrayCapitalIsFolded()
+    {
+        // Typed as "API services" with the Hebrew layout on and Caps Lock stuck.
+        Assert.Equal("API services", TextConverter.Convert("API S\u05e7\u05e8\u05d4\u05df\u05d1\u05e7\u05d3", ConversionDirection.Auto));
+    }
+
+    [Theory]
+    [InlineData("API \u05e9\u05dc\u05d5\u05dd", "API akuo")]
+    [InlineData("MTN2 \u05e9\u05dc\u05d5\u05dd", "MTN2 akuo")]
+    [InlineData("SQL, \u05e9\u05dc\u05d5\u05dd", "SQL, akuo")]
+    public void AllUppercaseWordsSurviveWhenHebrewIsPresent(string input, string expected)
+    {
+        Assert.Equal(expected, TextConverter.Convert(input, ConversionDirection.Auto));
+    }
+
+    [Theory]
+    [InlineData("AKUO", "\u05e9\u05dc\u05d5\u05dd")]
+    [InlineData("AKUO CUER YUC", "\u05e9\u05dc\u05d5\u05dd \u05d1\u05d5\u05e7\u05e8 \u05d8\u05d5\u05d1")]
+    [InlineData("API", "\u05e9\u05e4\u05df")]
+    public void AllUppercaseStillConvertsWithoutHebrewEvidence(string input, string expected)
+    {
+        // Hebrew typed on the English layout with Caps Lock on. Nothing in the
+        // selection is Hebrew, so the acronym guard must stay out of the way.
+        Assert.Equal(expected, TextConverter.Convert(input, ConversionDirection.Auto));
+    }
+
+    [Fact]
+    public void AcronymGluedToHebrewKeepsItsCase()
+    {
+        Assert.Equal("APIervices", TextConverter.Convert("API\u05e7\u05e8\u05d4\u05df\u05d1\u05e7\u05d3", ConversionDirection.Auto));
+    }
+
+    [Theory]
+    [InlineData("\u05d1-Zoom", "c-Zoom")]
+    [InlineData("Gmail\u05e9\u05dc\u05d9", "Gmailakh")]
+    public void BrandNamesGluedToHebrewKeepTheirCase(string input, string expected)
+    {
+        // Only a run of exactly one Latin letter is treated as a stray capital.
+        Assert.Equal(expected, TextConverter.Convert(input, ConversionDirection.Auto));
+    }
+
+    [Fact]
+    public void ASingleCapitalIsNotAnAcronym()
+    {
+        Assert.Equal("\u05e9", TextConverter.Convert("A", ConversionDirection.Auto));
+    }
+
+    [Fact]
+    public void TitleCaseWordsStillConvert()
+    {
+        Assert.Equal(
+            TextConverter.Convert("hello", ConversionDirection.Auto),
+            TextConverter.Convert("Hello", ConversionDirection.Auto));
+    }
+
+    [Fact]
+    public void SymbolOnlyTokensAreLeftAlone()
+    {
+        Assert.Equal("...", TextConverter.Convert("...", ConversionDirection.Auto));
+        Assert.Equal("!?", TextConverter.Convert("!?", ConversionDirection.Auto));
+    }
+
+    [Fact]
+    public void SmartCaseOffRestoresTheOldBehaviour()
+    {
+        Assert.Equal(
+            "\u05e9\u05e4\u05df Services",
+            TextConverter.Convert("API S\u05e7\u05e8\u05d4\u05df\u05d1\u05e7\u05d3", ConversionDirection.Auto, smartCase: false));
+    }
+
+    [Fact]
+    public void ForcedDirectionsIgnoreSmartCase()
+    {
+        // A forced direction is a literal instruction, so the acronym converts.
+        Assert.Equal("\u05e9\u05e4\u05df", TextConverter.Convert("API", ConversionDirection.EnglishToHebrew));
+    }
+
     [Fact]
     public void ExplicitDirectionOverridesDetection()
     {
@@ -165,6 +250,7 @@ public class AppSettingsTests
         Assert.True(settings.SwitchKeyboardLayout);
         Assert.True(settings.RestoreClipboard);
         Assert.Equal(ConversionDirection.Auto, settings.EffectiveDirection);
+        Assert.True(settings.SmartCase);
         Assert.True(settings.ClipboardTimeoutMs > 0);
         Assert.True(settings.SelectAllSettleMs > 0);
         Assert.True(settings.PasteSettleMs > 0);

@@ -154,7 +154,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
             return;
         }
 
-        string converted = TextConverter.Convert(text, _settings.EffectiveDirection);
+        string converted = TextConverter.Convert(text, _settings.EffectiveDirection, _settings.SmartCase);
 
         if (string.Equals(converted, text, StringComparison.Ordinal))
         {

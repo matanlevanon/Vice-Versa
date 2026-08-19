@@ -74,18 +74,96 @@ MapText(text, table) {
 ToHebrew(text) => MapText(text, EN_TO_HE)
 ToEnglish(text) => MapText(text, HE_TO_EN)
 
+; With the Windows Hebrew layout active, Caps Lock emits Latin uppercase instead
+; of Hebrew. So an ALL-CAPS word inside a selection that also contains Hebrew is
+; already what the user meant, and a lone capital sitting next to Hebrew text is
+; a Caps Lock artifact that gets folded to lowercase.
+global ACRONYM_MIN_LENGTH := 2
+
+IsAllUpperLatin(word) {
+    if (RegExMatch(word, "[a-z]") > 0)
+        return false
+
+    count := 0
+    Loop StrLen(word) {
+        if (RegExMatch(SubStr(word, A_Index, 1), "^[A-Z]$") > 0)
+            count += 1
+    }
+    return count >= ACRONYM_MIN_LENGTH
+}
+
+; A word typed on the Hebrew layout. Latin letters in it came from Caps Lock,
+; not from the Hebrew map, so they keep their case. The one exception is a run of
+; a single letter, a stray capital, which is folded to lowercase.
+ConvertHebrewWord(word, smartCase) {
+    if (!smartCase)
+        return ToEnglish(word)
+
+    out := ""
+    i := 1
+    total := StrLen(word)
+
+    while (i <= total) {
+        c := SubStr(word, i, 1)
+
+        if (RegExMatch(c, "^[A-Za-z]$") > 0) {
+            start := i
+            while (i <= total && RegExMatch(SubStr(word, i, 1), "^[A-Za-z]$") > 0)
+                i += 1
+
+            run := SubStr(word, start, i - start)
+            out .= StrLen(run) = 1 ? StrLower(run) : run
+        } else {
+            out .= HE_TO_EN.Has(c) ? HE_TO_EN[c] : c
+            i += 1
+        }
+    }
+
+    return out
+}
+
+; A word typed on the English layout. An all-uppercase word is left alone, but
+; only when the selection also contains Hebrew. Without that evidence the text is
+; more likely Hebrew typed on the English layout with Caps Lock on, where AKUO
+; really does mean shalom and still has to convert.
+ConvertEnglishWord(word, smartCase, textHasHebrew) {
+    if (smartCase && textHasHebrew && IsAllUpperLatin(word))
+        return word
+
+    return ToHebrew(word)
+}
+
+ConvertWord(word, smartCase, textHasHebrew) {
+    hasHeb := HasHebrew(word)
+    hasLat := HasLatin(word)
+
+    ; Digits, punctuation and symbols on their own carry no layout evidence.
+    if (!hasHeb && !hasLat)
+        return word
+
+    if (hasHeb)
+        return ConvertHebrewWord(word, smartCase)
+
+    return ConvertEnglishWord(word, smartCase, textHasHebrew)
+}
+
 ; Auto mode judges each whitespace-separated word on its own, so mixed text
 ; converts correctly in one pass. Whitespace is preserved exactly.
-ConvertAuto(text) {
+ConvertAuto(text, smartCase) {
     out := ""
     word := ""
+
+    ; Judged once for the whole selection, not per word.
+    textHasHebrew := HasHebrew(text)
 
     Loop StrLen(text) {
         c := SubStr(text, A_Index, 1)
 
-        if (c = " " || c = "`t" || c = "`n" || c = "`r") {
+        ; Matches char.IsWhiteSpace on the C# side, including the non-breaking
+        ; and typographic spaces that turn up in text copied from the web.
+        if (RegExMatch(c, "^[\s\x{0085}\x{00A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2029}\x{202F}\x{205F}\x{3000}]$") > 0) {
             if (word != "") {
-                out .= HasHebrew(word) ? ToEnglish(word) : ToHebrew(word)
+                out .= ConvertWord(word, smartCase, textHasHebrew)
                 word := ""
             }
             out .= c
@@ -95,17 +173,17 @@ ConvertAuto(text) {
     }
 
     if (word != "")
-        out .= HasHebrew(word) ? ToEnglish(word) : ToHebrew(word)
+        out .= ConvertWord(word, smartCase, textHasHebrew)
 
     return out
 }
 
-ConvertText(text, direction) {
+ConvertText(text, direction, smartCase := true) {
     if (direction = "EnglishToHebrew")
         return ToHebrew(text)
     if (direction = "HebrewToEnglish")
         return ToEnglish(text)
-    return ConvertAuto(text)
+    return ConvertAuto(text, smartCase)
 }
 
 ; ------------------------------------------------------------------ settings
@@ -130,7 +208,8 @@ global CFG := {
     autoSelectAll: IniRead(CONFIG_FILE, "General", "AutoSelectAll", "1") = "1",
     switchLayout: IniRead(CONFIG_FILE, "General", "SwitchKeyboardLayout", "1") = "1",
     restoreClipboard: IniRead(CONFIG_FILE, "General", "RestoreClipboard", "1") = "1",
-    showTips: IniRead(CONFIG_FILE, "General", "ShowNotifications", "1") = "1"
+    showTips: IniRead(CONFIG_FILE, "General", "ShowNotifications", "1") = "1",
+    smartCase: IniRead(CONFIG_FILE, "General", "SmartCase", "1") = "1"
 }
 
 SaveConfig() {
@@ -140,6 +219,7 @@ SaveConfig() {
     IniWrite(CFG.switchLayout ? "1" : "0", CONFIG_FILE, "General", "SwitchKeyboardLayout")
     IniWrite(CFG.restoreClipboard ? "1" : "0", CONFIG_FILE, "General", "RestoreClipboard")
     IniWrite(CFG.showTips ? "1" : "0", CONFIG_FILE, "General", "ShowNotifications")
+    IniWrite(CFG.smartCase ? "1" : "0", CONFIG_FILE, "General", "SmartCase")
 }
 
 ; --------------------------------------------------------------- main action
@@ -188,7 +268,7 @@ RunConversion() {
         return
     }
 
-    converted := ConvertText(text, CFG.direction)
+    converted := ConvertText(text, CFG.direction, CFG.smartCase)
 
     if (converted = text) {
         RestoreClip(saved)
@@ -244,6 +324,7 @@ BuildTray() {
     tray.Add("Select whole field if nothing selected", ToggleAutoSelect)
     tray.Add("Switch keyboard language after converting", ToggleSwitchLayout)
     tray.Add("Restore clipboard afterwards", ToggleRestoreClipboard)
+    tray.Add("Keep ALL-CAPS words as English", ToggleSmartCase)
     tray.Add()
     tray.Add("Start with Windows", ToggleStartup)
     tray.Add("Open settings file", OpenSettingsFile)
@@ -257,6 +338,8 @@ BuildTray() {
         tray.Check("Switch keyboard language after converting")
     if (CFG.restoreClipboard)
         tray.Check("Restore clipboard afterwards")
+    if (CFG.smartCase)
+        tray.Check("Keep ALL-CAPS words as English")
     if (StartupEnabled())
         tray.Check("Start with Windows")
 
@@ -298,6 +381,12 @@ ToggleSwitchLayout(*) {
 
 ToggleRestoreClipboard(*) {
     CFG.restoreClipboard := !CFG.restoreClipboard
+    SaveConfig()
+    BuildTray()
+}
+
+ToggleSmartCase(*) {
+    CFG.smartCase := !CFG.smartCase
     SaveConfig()
     BuildTray()
 }

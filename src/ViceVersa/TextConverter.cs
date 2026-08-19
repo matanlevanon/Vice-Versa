@@ -32,6 +32,12 @@ public static class TextConverter
     // those same physical keys, in the same order.
     private const string HebrewKeys = "/'קראטוןםפ][שדגכעיחלךף,זסבהנמצתץ.;";
 
+    /// <summary>
+    /// A word needs at least this many uppercase Latin letters to count as a
+    /// deliberate acronym rather than a stray Caps Lock capital.
+    /// </summary>
+    private const int AcronymMinimumLength = 2;
+
     private static readonly Dictionary<char, char> EnglishToHebrewMap = new();
     private static readonly Dictionary<char, char> HebrewToEnglishMap = new();
 
@@ -58,6 +64,9 @@ public static class TextConverter
     /// <summary>True if the character is a Hebrew letter (U+05D0 to U+05EA).</summary>
     public static bool IsHebrewLetter(char c) => c >= 'א' && c <= 'ת';
 
+    /// <summary>True if the character is an unaccented Latin letter.</summary>
+    public static bool IsLatinLetter(char c) => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+
     public static bool ContainsHebrew(string text)
     {
         foreach (char c in text)
@@ -75,7 +84,7 @@ public static class TextConverter
     {
         foreach (char c in text)
         {
-            if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'))
+            if (IsLatinLetter(c))
             {
                 return true;
             }
@@ -103,7 +112,14 @@ public static class TextConverter
     /// judged on its own, so mixed Hebrew and English text converts correctly in
     /// a single pass. Whitespace is preserved exactly.
     /// </summary>
-    public static string Convert(string text, ConversionDirection direction)
+    /// <param name="smartCase">
+    /// Applies to Auto mode only. Caps Lock on the Windows Hebrew layout emits
+    /// Latin uppercase instead of Hebrew, so an ALL-CAPS word inside a selection
+    /// that also contains Hebrew is already what the user meant and is left alone,
+    /// while a lone capital stuck to Hebrew text is folded to lowercase. Forced
+    /// directions stay literal.
+    /// </param>
+    public static string Convert(string text, ConversionDirection direction, bool smartCase = true)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -117,20 +133,24 @@ public static class TextConverter
             case ConversionDirection.HebrewToEnglish:
                 return ToEnglish(text);
             default:
-                return ConvertAuto(text);
+                return ConvertAuto(text, smartCase);
         }
     }
 
-    private static string ConvertAuto(string text)
+    private static string ConvertAuto(string text, bool smartCase)
     {
         var result = new StringBuilder(text.Length);
         var word = new StringBuilder(16);
+
+        // Whether the selection as a whole shows any Hebrew. A word is judged
+        // against this, not only against itself.
+        bool textHasHebrew = ContainsHebrew(text);
 
         foreach (char c in text)
         {
             if (char.IsWhiteSpace(c))
             {
-                FlushWord(word, result);
+                FlushWord(word, result, smartCase, textHasHebrew);
                 result.Append(c);
             }
             else
@@ -139,20 +159,117 @@ public static class TextConverter
             }
         }
 
-        FlushWord(word, result);
+        FlushWord(word, result, smartCase, textHasHebrew);
         return result.ToString();
     }
 
-    private static void FlushWord(StringBuilder word, StringBuilder result)
+    private static void FlushWord(StringBuilder word, StringBuilder result, bool smartCase, bool textHasHebrew)
     {
         if (word.Length == 0)
         {
             return;
         }
 
-        string chunk = word.ToString();
-        result.Append(ContainsHebrew(chunk) ? ToEnglish(chunk) : ToHebrew(chunk));
+        result.Append(ConvertWord(word.ToString(), smartCase, textHasHebrew));
         word.Clear();
+    }
+
+    /// <summary>Converts one whitespace-free token.</summary>
+    private static string ConvertWord(string word, bool smartCase, bool textHasHebrew)
+    {
+        bool hasHebrew = ContainsHebrew(word);
+        bool hasLatin = ContainsLatin(word);
+
+        // Digits, punctuation and symbols on their own carry no layout evidence.
+        if (!hasHebrew && !hasLatin)
+        {
+            return word;
+        }
+
+        return hasHebrew
+            ? ConvertHebrewWord(word, smartCase)
+            : ConvertEnglishWord(word, smartCase, textHasHebrew);
+    }
+
+    /// <summary>
+    /// Converts a word typed on the Hebrew layout back to English. Latin letters
+    /// inside such a word came from Caps Lock rather than from the Hebrew map, so
+    /// they are left as they are. The one exception is a run of a single letter,
+    /// a stray Caps Lock capital, which is folded to lowercase to match the rest
+    /// of the word. Longer runs keep their case, so brand names glued to a Hebrew
+    /// prefix survive.
+    /// </summary>
+    private static string ConvertHebrewWord(string word, bool smartCase)
+    {
+        if (!smartCase)
+        {
+            return ToEnglish(word);
+        }
+
+        var result = new StringBuilder(word.Length);
+        int i = 0;
+
+        while (i < word.Length)
+        {
+            if (IsLatinLetter(word[i]))
+            {
+                int start = i;
+
+                while (i < word.Length && IsLatinLetter(word[i]))
+                {
+                    i++;
+                }
+
+                string run = word[start..i];
+                result.Append(run.Length == 1 ? run.ToLowerInvariant() : run);
+            }
+            else
+            {
+                result.Append(HebrewToEnglishMap.TryGetValue(word[i], out char mapped) ? mapped : word[i]);
+                i++;
+            }
+        }
+
+        return result.ToString();
+    }
+
+    /// <summary>
+    /// Converts a word typed on the English layout to Hebrew. An all-uppercase
+    /// word is left alone, but only when the selection also contains Hebrew.
+    /// Without that evidence the selection is more likely to be Hebrew typed on
+    /// the English layout with Caps Lock on, where AKUO really does mean shalom
+    /// and still has to convert.
+    /// </summary>
+    private static string ConvertEnglishWord(string word, bool smartCase, bool textHasHebrew)
+    {
+        if (smartCase && textHasHebrew && IsAllUppercaseLatin(word))
+        {
+            return word;
+        }
+
+        return ToHebrew(word);
+    }
+
+    private static bool IsAllUppercaseLatin(string word)
+    {
+        int letters = 0;
+
+        foreach (char c in word)
+        {
+            if (!IsLatinLetter(c))
+            {
+                continue;
+            }
+
+            if (!char.IsUpper(c))
+            {
+                return false;
+            }
+
+            letters++;
+        }
+
+        return letters >= AcronymMinimumLength;
     }
 
     private static string Map(string text, Dictionary<char, char> map)

@@ -10,6 +10,7 @@ internal sealed class SettingsForm : Form
     private readonly HotkeyTextBox _hotkeyBox = new();
     private readonly ComboBox _directionBox = new();
     private readonly CheckBox _autoSelectBox = new();
+    private readonly CheckBox _smartCaseBox = new();
     private readonly CheckBox _switchLayoutBox = new();
     private readonly CheckBox _restoreClipboardBox = new();
     private readonly CheckBox _notificationsBox = new();
@@ -25,7 +26,7 @@ internal sealed class SettingsForm : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(420, 360);
+        ClientSize = new Size(440, 392);
         Font = new Font("Segoe UI", 9F);
         ShowInTaskbar = true;
 
@@ -44,7 +45,7 @@ internal sealed class SettingsForm : Form
     {
         int y = 16;
         const int left = 18;
-        const int width = 384;
+        const int width = 404;
 
         var hotkeyLabel = new Label
         {
@@ -82,6 +83,7 @@ internal sealed class SettingsForm : Form
         y += 36;
 
         AddCheckBox(_autoSelectBox, "Select the whole field when nothing is selected", left, ref y, width);
+        AddCheckBox(_smartCaseBox, "Keep ALL-CAPS words as English (auto mode)", left, ref y, width);
         AddCheckBox(_switchLayoutBox, "Switch the Windows keyboard language after converting", left, ref y, width);
         AddCheckBox(_restoreClipboardBox, "Restore the previous clipboard contents", left, ref y, width);
         AddCheckBox(_notificationsBox, "Show a notification when nothing could be converted", left, ref y, width);
@@ -100,7 +102,7 @@ internal sealed class SettingsForm : Form
         {
             Text = "Save",
             DialogResult = DialogResult.OK,
-            Location = new Point(ClientSize.Width - 190, ClientSize.Height - 40),
+            Location = new Point(ClientSize.Width - 194, ClientSize.Height - 40),
             Size = new Size(85, 28)
         };
         okButton.Click += OnSave;
@@ -109,7 +111,7 @@ internal sealed class SettingsForm : Form
         {
             Text = "Cancel",
             DialogResult = DialogResult.Cancel,
-            Location = new Point(ClientSize.Width - 100, ClientSize.Height - 40),
+            Location = new Point(ClientSize.Width - 103, ClientSize.Height - 40),
             Size = new Size(85, 28)
         };
 
@@ -140,6 +142,7 @@ internal sealed class SettingsForm : Form
         };
 
         _autoSelectBox.Checked = _settings.AutoSelectAll;
+        _smartCaseBox.Checked = _settings.SmartCase;
         _switchLayoutBox.Checked = _settings.SwitchKeyboardLayout;
         _restoreClipboardBox.Checked = _settings.RestoreClipboard;
         _notificationsBox.Checked = _settings.ShowNotifications;
@@ -158,6 +161,7 @@ internal sealed class SettingsForm : Form
         };
 
         _settings.AutoSelectAll = _autoSelectBox.Checked;
+        _settings.SmartCase = _smartCaseBox.Checked;
         _settings.SwitchKeyboardLayout = _switchLayoutBox.Checked;
         _settings.RestoreClipboard = _restoreClipboardBox.Checked;
         _settings.ShowNotifications = _notificationsBox.Checked;

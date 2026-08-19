@@ -20,6 +20,7 @@ Vice Versa maps text between the US English and Israeli Hebrew keyboard layouts 
 - **One hotkey, everywhere.** Works in any Windows application with a text field. Browsers, Office, Slack, WhatsApp Desktop, Notepad, IDEs.
 - **No selection needed.** If nothing is highlighted, it selects the field for you first.
 - **Auto direction.** Each word is judged on its own, so a line mixing Hebrew and English converts correctly in one pass.
+- **Acronyms survive.** `API Sקרהןבקד` becomes `API services`, not `שפן Services`. See [Smart case](#smart-case).
 - **Switches your keyboard language.** After converting, the Windows input language flips to match, so your next keystrokes land in the right language.
 - **Portable or installed.** Unzip and run, or install with a Start-with-Windows option.
 - **Your clipboard survives.** Whatever you had copied is put back afterwards.
@@ -62,11 +63,48 @@ The check needs the repository to be public. A private repository answers the sa
 | Hotkey | `Shift+F12` | The system-wide trigger. |
 | Direction | Auto | Auto decides per word. Force one direction if you prefer. |
 | Select whole field if nothing selected | On | Sends `Ctrl+A` when the first copy comes back empty. |
+| Keep ALL-CAPS words as English | On | Smart case, described below. Auto direction only. |
 | Switch keyboard language after converting | On | Posts a language change request to the target window. |
 | Restore clipboard afterwards | On | Puts your previous clipboard text back. |
 | Start with Windows | Off | Adds a per-user entry under the `Run` registry key. |
 
 Settings live in `%APPDATA%\ViceVersa\settings.json`, or next to the executable when `portable.txt` sits beside it. The portable zip ships with that marker file. Delete it to switch to AppData.
+
+## Smart case
+
+Caps Lock behaves differently on the Windows Hebrew layout: instead of Hebrew letters it emits **Latin uppercase**. So a line typed with the Hebrew layout active can come out half English:
+
+```
+you meant:   API services
+you got:     API Sקרהןבקד
+```
+
+`API` and the stray `S` are Caps Lock output. `קרהןבקד` is `ervices` on the Hebrew layout. Naive per-word conversion produces `שפן Services`, mangling the acronym and leaving a capital where none belongs.
+
+Smart case adds two rules, both scoped to auto direction:
+
+1. An **ALL-CAPS word is left as English**, but only when the selection also contains Hebrew. That guard matters: with no Hebrew anywhere, `AKUO` is Hebrew typed on the English layout with Caps Lock on and still has to become `שלום`.
+2. A Latin run of **exactly one letter** next to Hebrew is a stray Caps Lock capital and gets folded to lowercase. Longer runs keep their case, so brand names glued to a Hebrew prefix survive.
+
+| Input | Smart case on | Smart case off |
+|---|---|---|
+| `API Sקרהןבקד` | `API services` | `שפן Services` |
+| `API שלום` | `API akuo` | `שפן akuo` |
+| `APIקרהןבקד` | `APIervices` | `APIervices` |
+| `API` on its own | `שפן` | `שפן` |
+| `AKUO CUER YUC` | `שלום בוקר טוב` | `שלום בוקר טוב` |
+| `ב-Zoom` | `c-Zoom` | `c-Zoom` |
+| `Hello` | `יקךךם` | `יקךךם` |
+| `A` | `ש` | `ש` |
+| `...` | `...` | `...` |
+
+Notes:
+
+- Forcing a direction is a literal instruction, so `API` forced English-to-Hebrew still gives `שפן` whatever this setting says.
+- Title case is untouched: `Hello` is ordinary English typing, not Caps Lock output.
+- Tokens with no letters at all pass straight through.
+
+Turn it off from the tray icon or Settings for the old literal behaviour.
 
 ## The key map
 

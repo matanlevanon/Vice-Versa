@@ -68,18 +68,87 @@ def convert_he_to_en(text):
     return "".join(HE_TO_EN.get(c, c) for c in text)
 
 
-def convert_auto(text):
+def is_latin(c):
+    return ("a" <= c <= "z") or ("A" <= c <= "Z")
+
+
+ACRONYM_MIN_LENGTH = 2
+
+
+def is_all_upper_latin(word):
+    """True when every Latin letter in the word is uppercase and there are at
+    least ACRONYM_MIN_LENGTH of them."""
+    letters = [c for c in word if is_latin(c)]
+    return len(letters) >= ACRONYM_MIN_LENGTH and all(c.isupper() for c in letters)
+
+
+def convert_hebrew_word(word, smart_case=True):
+    """Convert a word that was typed on the Hebrew layout back to English.
+
+    Latin letters inside such a word came from Caps Lock rather than from the
+    Hebrew map, so they are left alone. The one exception is a run of a single
+    letter, which is a stray Caps Lock capital and is folded to lowercase to
+    match the rest of the word."""
+    if not smart_case:
+        return convert_he_to_en(word)
+
+    out = []
+    i = 0
+
+    while i < len(word):
+        if is_latin(word[i]):
+            j = i
+            while j < len(word) and is_latin(word[j]):
+                j += 1
+            run = word[i:j]
+            out.append(run.lower() if len(run) == 1 else run)
+            i = j
+        else:
+            out.append(HE_TO_EN.get(word[i], word[i]))
+            i += 1
+
+    return "".join(out)
+
+
+def convert_english_word(word, smart_case=True, text_has_hebrew=False):
+    """Convert a word that was typed on the English layout to Hebrew.
+
+    An all-uppercase word is left alone, but only when the selection also
+    contains Hebrew. Without that evidence the selection is more likely to be
+    Hebrew typed on the English layout with Caps Lock on, where AKUO really
+    does mean shalom and must still convert."""
+    if smart_case and text_has_hebrew and is_all_upper_latin(word):
+        return word
+
+    return convert_en_to_he(word)
+
+
+def convert_word(word, smart_case=True, text_has_hebrew=False):
+    has_heb = has_hebrew(word)
+    has_lat = any(is_latin(c) for c in word)
+
+    # Digits, punctuation and symbols on their own carry no layout evidence.
+    if not has_heb and not has_lat:
+        return word
+
+    if has_heb:
+        return convert_hebrew_word(word, smart_case)
+
+    return convert_english_word(word, smart_case, text_has_hebrew)
+
+
+def convert_auto(text, smart_case=True):
     """Per-word auto-detect. A word containing Hebrew letters is converted
     Hebrew -> English; every other word is converted English -> Hebrew.
     Whitespace is preserved exactly."""
     out = []
     buf = []
+    text_has_hebrew = has_hebrew(text)
 
     def flush():
         if not buf:
             return
-        word = "".join(buf)
-        out.append(convert_he_to_en(word) if has_hebrew(word) else convert_en_to_he(word))
+        out.append(convert_word("".join(buf), smart_case, text_has_hebrew))
         buf.clear()
 
     for c in text:
@@ -130,6 +199,38 @@ def check():
 
     # Whitespace preservation with tabs and multiple spaces
     expect("whitespace", convert_auto("a  b\tc"), "ש  נ\tב")
+
+    # Smart case. Caps Lock on the Hebrew layout emits Latin uppercase, so an
+    # ALL-CAPS run is already correct and a lone capital beside Hebrew is noise.
+    heb_services = "\u05e7\u05e8\u05d4\u05df\u05d1\u05e7\u05d3"  # "ervices" on the Hebrew layout
+
+    expect("acronym plus stray capital",
+           convert_auto("API S" + heb_services), "API services")
+    expect("acronym glued to hebrew",
+           convert_auto("API" + heb_services), "APIervices")
+    expect("acronym kept when hebrew is present elsewhere",
+           convert_auto("API \u05e9\u05dc\u05d5\u05dd"), "API akuo")
+
+    # Without Hebrew evidence an all-caps word is Hebrew typed with Caps Lock on,
+    # so it must still convert. This is the mirror image of the case above.
+    expect("all caps with no hebrew still converts", convert_auto("AKUO"), "\u05e9\u05dc\u05d5\u05dd")
+    expect("all caps sentence with no hebrew", convert_auto("AKUO CUER YUC"),
+           "\u05e9\u05dc\u05d5\u05dd \u05d1\u05d5\u05e7\u05e8 \u05d8\u05d5\u05d1")
+    expect("acronym alone still converts", convert_auto("API"), "\u05e9\u05e4\u05df")
+
+    # Only a single stray capital is folded. Longer runs keep their case, so
+    # brand names glued to Hebrew survive.
+    expect("brand name after a hebrew prefix",
+           convert_auto("\u05d1-Zoom"), "c-Zoom")
+    expect("brand name before hebrew",
+           convert_auto("Gmail\u05e9\u05dc\u05d9"), "Gmailakh")
+
+    expect("single capital is not an acronym", convert_auto("A"), "\u05e9")
+    expect("title case still converts", convert_auto("Hello"), convert_auto("hello"))
+    expect("symbols alone are left alone", convert_auto("..."), "...")
+    expect("smart case off keeps the old behaviour",
+           convert_auto("API S" + heb_services, smart_case=False),
+           "\u05e9\u05e4\u05df Services")
 
     # Every Hebrew letter has an English key
     missing = [c for c in HEBREW_LETTERS if c not in HE_TO_EN]
