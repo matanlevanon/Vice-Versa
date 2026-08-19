@@ -78,8 +78,10 @@ ToEnglish(text) => MapText(text, HE_TO_EN)
 ; of Hebrew. So an ALL-CAPS word inside a selection that also contains Hebrew is
 ; already what the user meant, and a lone capital sitting next to Hebrew text is
 ; a Caps Lock artifact that gets folded to lowercase.
-global ACRONYM_MIN_LENGTH := 2
-
+; True when every Latin letter in the word is uppercase and there is at least
+; one. A single letter counts. The caller only asks this about a selection that
+; already contains Hebrew, where a lone Latin capital is Caps Lock output the
+; user meant to keep, such as the I in "I need API help".
 IsAllUpperLatin(word) {
     if (RegExMatch(word, "[a-z]") > 0)
         return false
@@ -89,7 +91,7 @@ IsAllUpperLatin(word) {
         if (RegExMatch(SubStr(word, A_Index, 1), "^[A-Z]$") > 0)
             count += 1
     }
-    return count >= ACRONYM_MIN_LENGTH
+    return count >= 1
 }
 
 ; A word typed on the Hebrew layout. Latin letters in it came from Caps Lock,

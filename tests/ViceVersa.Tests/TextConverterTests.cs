@@ -155,9 +155,25 @@ public class TextConverterTests
     }
 
     [Fact]
-    public void ASingleCapitalIsNotAnAcronym()
+    public void ASingleCapitalWithoutHebrewEvidenceStillConverts()
     {
+        // Nothing in the selection is Hebrew, so "A" is read as Hebrew typed on
+        // the English layout with Caps Lock on.
         Assert.Equal("\u05e9", TextConverter.Convert("A", ConversionDirection.Auto));
+    }
+
+    [Theory]
+    [InlineData("I \u05de\u05e7\u05e7\u05d2 API \u05d9\u05e7\u05da\u05e4", "I need API help")]
+    [InlineData("A DB /\u05d5\u05e7\u05e8\u05d8", "A DB query")]
+    [InlineData("OK I \u05e9\u05e2\u05e8\u05e7\u05e7", "OK I agree")]
+    public void ALoneCapitalNextToHebrewSurvives(string input, string expected)
+    {
+        // Caps Lock on the Hebrew layout emits Latin uppercase, so a one letter
+        // word such as "I" or "A" is already the character the user wanted. It
+        // survives only when the selection also holds Hebrew, which is the same
+        // evidence the acronym rule uses. Without that evidence the test above
+        // applies instead.
+        Assert.Equal(expected, TextConverter.Convert(input, ConversionDirection.Auto));
     }
 
     [Fact]

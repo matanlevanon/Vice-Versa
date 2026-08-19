@@ -72,14 +72,16 @@ def is_latin(c):
     return ("a" <= c <= "z") or ("A" <= c <= "Z")
 
 
-ACRONYM_MIN_LENGTH = 2
-
-
 def is_all_upper_latin(word):
-    """True when every Latin letter in the word is uppercase and there are at
-    least ACRONYM_MIN_LENGTH of them."""
+    """True when every Latin letter in the word is uppercase and there is at
+    least one.
+
+    A single letter counts. The caller only asks this question about a selection
+    that already contains Hebrew, and in that selection a lone Latin capital is
+    Caps Lock output the user meant to keep, such as the I in "I need API help".
+    """
     letters = [c for c in word if is_latin(c)]
-    return len(letters) >= ACRONYM_MIN_LENGTH and all(c.isupper() for c in letters)
+    return len(letters) >= 1 and all(c.isupper() for c in letters)
 
 
 def convert_hebrew_word(word, smart_case=True):
@@ -225,7 +227,30 @@ def check():
     expect("brand name before hebrew",
            convert_auto("Gmail\u05e9\u05dc\u05d9"), "Gmailakh")
 
-    expect("single capital is not an acronym", convert_auto("A"), "\u05e9")
+    expect("single capital without hebrew evidence still converts",
+           convert_auto("A"), "\u05e9")
+
+    # Round trip harness. Take the English the user meant, mangle it the way a
+    # live Hebrew layout plus Caps Lock actually would, convert it back, and
+    # require the original. This is the only honest test of the tool, because it
+    # starts from intent rather than from a hand written expectation.
+    def mangle(intended):
+        """What the keyboard emits for `intended` while the Hebrew layout is
+        active. A word the user typed with Caps Lock on comes out as Latin
+        uppercase, everything else goes through the Hebrew map."""
+        return " ".join(
+            w if w.isupper() else convert_en_to_he(w) for w in intended.split(" ")
+        )
+
+    for intended in (
+        "I need API help",
+        "A DB query",
+        "I sent the PDF",
+        "OK I agree",
+        "a test",
+        "I love it",
+    ):
+        expect(f"round trip {intended!r}", convert_auto(mangle(intended)), intended)
     expect("title case still converts", convert_auto("Hello"), convert_auto("hello"))
     expect("symbols alone are left alone", convert_auto("..."), "...")
     expect("smart case off keeps the old behaviour",

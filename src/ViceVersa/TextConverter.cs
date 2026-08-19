@@ -32,12 +32,6 @@ public static class TextConverter
     // those same physical keys, in the same order.
     private const string HebrewKeys = "/'קראטוןםפ][שדגכעיחלךף,זסבהנמצתץ.;";
 
-    /// <summary>
-    /// A word needs at least this many uppercase Latin letters to count as a
-    /// deliberate acronym rather than a stray Caps Lock capital.
-    /// </summary>
-    private const int AcronymMinimumLength = 2;
-
     private static readonly Dictionary<char, char> EnglishToHebrewMap = new();
     private static readonly Dictionary<char, char> HebrewToEnglishMap = new();
 
@@ -250,6 +244,13 @@ public static class TextConverter
         return ToHebrew(word);
     }
 
+    /// <summary>
+    /// True when every Latin letter in the word is uppercase and there is at
+    /// least one. A single letter counts. The caller only asks this question
+    /// about a selection that already contains Hebrew, and in that selection a
+    /// lone Latin capital is Caps Lock output the user meant to keep, such as
+    /// the I in "I need API help".
+    /// </summary>
     private static bool IsAllUppercaseLatin(string word)
     {
         int letters = 0;
@@ -269,7 +270,7 @@ public static class TextConverter
             letters++;
         }
 
-        return letters >= AcronymMinimumLength;
+        return letters >= 1;
     }
 
     private static string Map(string text, Dictionary<char, char> map)

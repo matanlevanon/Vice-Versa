@@ -83,28 +83,30 @@ you got:     API Sקרהןבקד
 
 Smart case adds two rules, both scoped to auto direction:
 
-1. An **ALL-CAPS word is left as English**, but only when the selection also contains Hebrew. That guard matters: with no Hebrew anywhere, `AKUO` is Hebrew typed on the English layout with Caps Lock on and still has to become `שלום`.
+1. An **ALL-CAPS word is left as English**, but only when the selection also contains Hebrew. A single capital counts, so the `I` in `I need API help` survives instead of turning into `ן`. That guard matters: with no Hebrew anywhere, `AKUO` is Hebrew typed on the English layout with Caps Lock on and still has to become `שלום`, and a bare `A` still becomes `ש`.
 2. A Latin run of **exactly one letter** next to Hebrew is a stray Caps Lock capital and gets folded to lowercase. Longer runs keep their case, so brand names glued to a Hebrew prefix survive.
 
 | Input | Smart case on | Smart case off |
 |---|---|---|
 | `API Sקרהןבקד` | `API services` | `שפן Services` |
+| `I מקקג API יקךפ` | `I need API help` | `ן need שפן help` |
 | `API שלום` | `API akuo` | `שפן akuo` |
 | `APIקרהןבקד` | `APIervices` | `APIervices` |
 | `API` on its own | `שפן` | `שפן` |
 | `AKUO CUER YUC` | `שלום בוקר טוב` | `שלום בוקר טוב` |
 | `ב-Zoom` | `c-Zoom` | `c-Zoom` |
 | `Hello` | `יקךךם` | `יקךךם` |
-| `A` | `ש` | `ש` |
+| `A` on its own | `ש` | `ש` |
 | `...` | `...` | `...` |
 
 Notes:
 
 - Forcing a direction is a literal instruction, so `API` forced English-to-Hebrew still gives `שפן` whatever this setting says.
+- A single capital is kept only next to Hebrew. On its own it has no such evidence, so `A` still becomes `ש`.
 - Title case is untouched: `Hello` is ordinary English typing, not Caps Lock output.
 - Tokens with no letters at all pass straight through.
 
-Turn it off from the tray icon or Settings for the old literal behaviour.
+Turn it off in Settings for the old literal behaviour. The AutoHotkey edition also carries the toggle in its tray menu.
 
 ## The key map
 
